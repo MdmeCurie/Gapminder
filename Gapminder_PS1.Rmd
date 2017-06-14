@@ -1,0 +1,287 @@
+---
+title: 'Gap Minder - Problem Set 1 Lesson 4, #15'
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+Execute with *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+Add  new chunk with *Insert Chunk* button on toolbar or *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file).
+
+###The Gapminder website
+contains over 500 data sets with information about the world's population. Your task is to download a data set of your choice and *create 2-5 plots* that make use of the techniques from Lesson 3.
+_You might use:_
+- a simple histogram, 
+- a boxplot split over a categorical variable,
+- or a frequency polygon
+The choice is yours!
+
+###_Once you've completed your investigation, create a post in the discussions that includes:_
+1. any questions you answered, your observations, and summary statistics
+2. snippets of code that created the plots
+3. links to the images of your plots
+
+###Save images by using the ggsave() command.
+ggsave() will save the last plot created.
+ For example...
+#                  qplot(x = price, data = diamonds)
+#                  ggsave('priceHistogram.png')
+
+ggsave currently recognises the extensions eps/ps, tex (pictex),
+pdf, jpeg, tiff, png, bmp, svg and wmf (windows only).
+
+###Read Files: _`read.csv()`_
+The following command may be helpful for some of the Gapminder Data sets, once it's been converted to csv format: `read.csv('data.csv', header = T, row.names = 1, check.names = F)`. You may want to look at additional function arguments in the help file for the `read.table()` family for additional tools that can help you read in data.
+
+###To exchange the rows and columns of  dataframe 
+ use the transpose function, `t()`.
+ 
+###*Copy and paste all of the code that you used for your investigation, and submit it when you are ready.*
+---
+####Read in File
+```{r ReadData}
+unemployed <- read.csv('f 25-54 unemploy.csv', header=TRUE)
+#ingore last row 30 and column (27) with NA values
+unplyd <- unemployed[1:29,1:26]
+names(unplyd)<- gsub('X', "", names(unplyd))
+colnames(unplyd)[1] = "country"
+```
+####Load Libraries
+```{r LoadLibraries}
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(gridExtra)
+```
+####Tidy Data
+
+collapse multiple columns with gather
+```{r TidyData}
+
+unplyd_year <- gather(unplyd, year, unemployed, 2:26,
+                      na.rm = TRUE)
+head(unplyd_year,5)
+str(unplyd_year)
+```
+###Data Transformation with dplyr
+filter for unemployment > 20%
+arrange from largest to smallest (descending) unemployment
+arrange from most recent to oldest year (descending)
+```{r}
+
+big_u <- filter(unplyd_year, unemployed >20)
+big_u
+arrange(big_u, desc(unemployed))
+```
+```{r Boxplot_plain}
+boxplot(unplyd_year$unemployed~unplyd_year$country, 
+        ylab = '% Unemployment', las=2)
+```
+###Group/Order countries by median unemployment
+```{r}
+bymedian <- with(unplyd_year,reorder(unplyd_year$country,unplyd_year$unemployed,median))
+bymedian
+```
+
+```{r MedianUnemployment}
+boxplot(unplyd_year$unemployed~bymedian, 
+        ylab= "% Unemployment", las=3,
+        par(mar = c(7, 5, 1, 2) + 0.1), col = 'lightblue',              cex.axis = 0.7,
+        cex.lab = 0.9)
+mtext('World Survey Unemployed Females aged 25-54', side=3, line = 0)
+mtext('Country', side=1, line = 6)
+text(9,10,"US",cex= 0.6, col= 'red')
+
+```
+###Plot world unemployment by year
+```{r}
+boxplot(unplyd_year$unemployed~unplyd_year$year,
+        las=2, cex.axis = 0.8, col= 'lightgreen')
+mtext('World Survey Unemployed Females aged 25-54', side=3, line = 1)
+mtext('% Unemployment', side=2, line = 2)
+mtext('Year', side=1, line = 3)
+```
+###Count = number of countries reporting results
+```{r}
+qplot(x = unplyd_year$year, data = unplyd_year, 
+      fill = I('darkred'),
+      xlab = 'Year', ylab = 'Count',
+      main = '# Countries Reporting Unemployment',
+      )+
+   theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = 90, hjust = 0))
+
+```
+```{r}
+unplyd_year %>% group_by(year) %>% summarise(n=n())
+```
+
+
+###Statistics of Unemployment by Year
+```{r}
+by(unplyd_year$unemployed,unplyd_year$year, summary)
+```
+###Order by Countries, then Year
+```{r}
+#using pipe %>%
+acountry <- unplyd_year %>% arrange(country, year)
+acountry
+#using group_by
+grouped <-group_by(acountry, country, year)
+```
+###Line graph of Unemployment by year in all Countries
+```{r}
+ggplot(data=acountry, aes(acountry$year, acountry$unemployed,
+                          colour = acountry$country,
+                          group = acountry$country))+
+  geom_line()+
+  xlab('YEARS') + 
+  ylab('% Unemployed')+
+  theme(axis.text.x=element_text(angle=60, hjust=1), 
+        legend.key.size = unit(0.1,'cm'),
+        legend.text = element_text(angle = 10, size = 6),
+        legend.title = element_blank())+
+  ggtitle('US Unemployed Females aged 25-54')
+```
+###Summarise Stats by group (country or year)
+cannot skip first pipe otherwise grouping is wrong
+```{r}
+acountry %>% 
+  group_by(country) %>%
+  summarise(mean=mean(unemployed), sum = sum(unemployed),
+  n= n())
+
+acountry %>% 
+  group_by(year) %>%
+  summarise(mean=mean(unemployed), sum = sum(unemployed),
+  n= n())
+
+# following gives overall stats for entire DF not "arranged" dataframe
+acountry %>% 
+  summarise(mean=mean(unemployed), sum = sum(unemployed),
+  n= n())
+```
+
+###Graph of 2 countries from separate DFs
+```{r}
+us <-subset(acountry, acountry$country == 'United States')
+spain <-subset(acountry, acountry$country == 'Spain')
+ggplot()+
+  geom_line(aes(us$year, us$unemployed, 
+                color =country, group = 1),us)+
+  geom_line(aes(spain$year, spain$unemployed, 
+                color =country, group =1),spain) + 
+  xlab('YEARS') + 
+  ylab('% Unemployed')+
+  theme(axis.text.x=element_text(angle=60, hjust=1))+
+  ggtitle('Unemployed Females aged 25-54')
+```
+###Distribution of the Unemployment Rate
+```{r}
+dist1 <-qplot(x = unplyd_year$unemployed, data = unplyd_year, binwidth = 1,
+      xlab = "Unemployment Rates of the World 1981-2005",
+      ylab = "Count",
+      color = I('black'), fill = I('chocolate3'))+
+  scale_x_continuous(breaks = seq(0,25, by=5), limits = c(0,25))
+dist1
+```
+###Frequency Polygon 
+add frequency line to distribution graph
+```{r}
+dist1 + geom_freqpoly(colour = 'blue', binwidth = 0.75)
+```
+###Transformations
+Square Root transformation of scale
+```{r}
+
+dist2 <-qplot(x = unplyd_year$unemployed, data = unplyd_year, binwidth = .2,
+      xlab = "Unemployment Rates of the World 1981-2005",
+      ylab = "Count",
+      color = I('black'), fill = I('blue'))+
+  scale_x_sqrt(breaks = seq(0,30, by=5), limits = c(0,35))
+dist2
+```
+###Facet Wrap
+first option does some type of couont/distribution plot while the 
+second with geom_line plots the unemployment v year per country
+```{r}
+qplot(unplyd_year$unemployed, 
+      data =unplyd_year,
+      binwidth = 1) +
+  scale_x_continuous(breaks = 1:31) +
+  facet_wrap(~unplyd_year$country, scales ='free')
+```
+```{r}
+ggplot(unplyd_year, aes(year, unemployed, group=country))+
+  geom_line()+
+  facet_wrap(~unplyd_year$country, scales ='free')
+```
+
+```{r}
+subset(unplyd_year, unplyd_year$country == 'Spain')
+```
+```{r}
+sample(unplyd_year$country,5)
+```
+
+```{r}
+unplyd_year[sample(nrow(unplyd_year), 5),]
+```
+
+```{r}
+ggplot(acountry, aes(acountry$unemployed, 
+                     acountry$country,))+
+  geom_point()
+```
+
+```{r}
+acountry2 <- acountry
+unique(levels(acountry2$country))
+levels(acountry$country)
+```
+###Relevel the countries by unemployment
+```{r}
+acountry2$country2 <-factor(
+  acountry$country,
+  levels=acountry2[order(acountry2$unemployed), 'country'])
+levels(acountry2$country)
+```
+```{r}
+unique(levels(acountry2$country))
+```
+
+```{r}
+
+ggplot(acountry2, aes(y=country2, x=unemployed))+
+  geom_point(stat="identity")
+
+```
+```{r}
+mittel <-acountry2 %>% group_by(country) %>% 
+  summarise(mean=mean(unemployed))
+
+a<-ggplot(mittel, aes(y=mittel$country, x=mittel$mean))+
+  geom_point()
+
+ag_country <- aggregate(unemployed ~ country, acountry, max)
+
+b<- ggplot(ag_country, aes(y=ag_country$country,
+                       x=ag_country$unemployed))+
+  geom_point()
+
+grid.arrange(a,b, nrow=2)
+```
+
+```{r}
+acountry2$country3 <-factor(
+  acountry2$country, levels=ag_country[
+    order(ag_country$unemployed), "country"])
+
+ggplot(acountry2, aes(y=country3, x=unemployed))+
+  xlab('Unemployment %')+
+  ylab('Country')+
+  geom_point(stat="identity")+
+  ggtitle("Unemployment Organized by mean/max/min")
+```
+
